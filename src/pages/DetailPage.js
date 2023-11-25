@@ -33,7 +33,6 @@ const DetailPage = () => {
   const [listed_count, setListedCount] = useState(0);
   const profitElement = useRef();
   const storeElement = useRef();
-
   const bestOfferList = [];
   const listingExceptAllList = [];
 
@@ -42,6 +41,10 @@ const DetailPage = () => {
   const editStatus = useSelector((state) => state.edit.status);
   const checkboxlist = useSelector((state) => state.edit.checkboxlist);
   const bestOfferAllFlag = useSelector((state) => state.edit.bestOfferAllFlag);
+
+  const [socket, setSocket] = useState(null);
+  const [message, setMessage] = useState("");
+
   const listingExceptAllFlag = useSelector(
     (state) => state.edit.listingExceptAllFlag
   );
@@ -51,6 +54,43 @@ const DetailPage = () => {
 
   const dispatch = useDispatch();
   let { id } = useParams();
+
+  const [isLoad, setLoad] = useState(false);
+  let newSocket;
+  useEffect(() => {
+    newSocket = new WebSocket("ws://57.180.142.77/ws/");
+    setSocket(newSocket);
+    setLoad(true);
+    console.log("first connect");
+    console.log(newSocket);
+    console.log(socket);
+  }, []);
+
+  useEffect(() => {
+    if (isLoad == true) {
+      console.log("before websocket connect");
+      console.log(socket);
+      // socket.onopen = () => {
+      console.log("WebSocket connected");
+      console.log(message);
+      axios
+        .get(process.env.REACT_APP_API_ROOT + "getListStatus")
+        .then((response) => {
+          if (response["data"]["status"] == "success") {
+            setLoading(false);
+            setDisable(false);
+          } else {
+            setListedCount(response["data"]["list_cn"]);
+            socket.send(
+              JSON.stringify({
+                message: "getStatus",
+              })
+            );
+          }
+        });
+      // };
+    }
+  }, [message]);
 
   useEffect(() => {
     setLoading(true);
@@ -194,8 +234,15 @@ const DetailPage = () => {
     } else {
       setLoading(true);
       setDisable(true);
-      axios
-        .post(process.env.REACT_APP_API_ROOT + "listProduct", {
+
+      ////////////
+
+      fetch(process.env.REACT_APP_API_ROOT + "listProduct", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           logId: id,
           businessPolicy: optionTexts,
           description: descriptionOption,
@@ -203,26 +250,29 @@ const DetailPage = () => {
           profitRate: profit_rate,
           checkboxList: checkboxlist,
           checkboxbestoffer: checkboxbestoffer,
-        })
-        .then((response) => {
-          setLoading(false);
-          setDisable(false);
-          setListedCount(0);
-        });
+        }),
+      }).catch((error) => {
+        // Handle any errors that occurred during the fetch
+        console.error("Request failed", error);
+      });
 
-      const interval = setInterval(() => {
-        axios
-          .get(process.env.REACT_APP_API_ROOT + "getListStatus")
-          .then((response) => {
-            if (response["data"]["status"] == "success") {
-              setLoading(false);
-              setDisable(false);
-              clearInterval(interval);
-            } else {
-              setListedCount(response["data"]["list_cn"]);
-            }
-          });
-      }, 2000);
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        setMessage(data.message);
+        // console.log(data.message);
+
+        socket.send(
+          JSON.stringify({
+            message: "getStatus",
+          })
+        );
+      };
+
+      socket.send(
+        JSON.stringify({
+          message: "getStatus",
+        })
+      );
     }
   };
   return (

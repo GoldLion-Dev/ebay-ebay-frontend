@@ -20,9 +20,8 @@ const Dashboard = () => {
   const [deleteLogId, setDeleteLog] = useState();
   const [socket, setSocket] = useState(null);
   const [message, setMessage] = useState("");
-
-  const dispatch = useDispatch();
   // const profitElement = useRef();
+  const dispatch = useDispatch();
   const countRef = useRef();
   const storeElement = useRef();
   const countPerPage = useSelector((state) => state.listing.countPerPage);
@@ -31,31 +30,49 @@ const Dashboard = () => {
 
   const [count, setCount] = useState(0);
 
-  let newSocket = new WebSocket("ws://57.180.142.77:8000/ws/");
+  const [isLoad, setLoad] = useState(false);
+  let newSocket;
   useEffect(() => {
-    newSocket = new WebSocket("ws://57.180.142.77:8000/ws/");
-    console.log("before websocket connect");
-    newSocket.onopen = () => {
+    newSocket = new WebSocket("ws://57.180.142.77/ws/");
+    setSocket(newSocket);
+    setLoad(true);
+    console.log("first connect");
+    console.log(newSocket);
+    console.log(socket);
+    countRef.current = 0;
+    console.log(countRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (isLoad == true) {
+      console.log("before websocket connect");
+      console.log(socket);
+      // socket.onopen = () => {
       console.log("WebSocket connected");
       console.log(message);
+      console.log(countRef.current);
       axios
         .get(process.env.REACT_APP_API_ROOT + "getStatus")
         .then((response) => {
-          if (response["data"]["status"] == "success") {
+          if (response["data"]["status"] == "success" && countRef.current > 2) {
+            countRef.current = 0;
             setLoading(false);
             setDisable(false);
             setTableData(response["data"]["result"]);
           } else {
             setExtractedCount(response["data"]["extracted_count"]);
             setTotalCount(response["data"]["total_count"]);
-            newSocket.send(
+            socket.send(
               JSON.stringify({
                 message: "getStatus",
               })
             );
           }
         });
-    };
+      // };
+    }
+
+    countRef.current = countRef.current + 1;
   }, [message]);
 
   useEffect(() => {
@@ -68,6 +85,7 @@ const Dashboard = () => {
   }, [deleteLogId]);
 
   const handleClick = () => {
+    console.log(socket);
     const store_name = storeElement.current.value;
     if (store_name == "") {
       alert("すべてのフィールドを入力してください");
@@ -75,9 +93,13 @@ const Dashboard = () => {
       setLoading(true);
       setDisable(true);
       axios
-        .post(process.env.REACT_APP_API_ROOT + "getProducts", {
-          storeName: store_name,
-        })
+        .post(
+          process.env.REACT_APP_API_ROOT + "getProducts",
+          {
+            storeName: store_name,
+          },
+          { timeout: 1000000 }
+        )
         .then((response) => {
           if (response["data"]["status"] == "200") {
             setTableData(response["data"]["result"]);
@@ -89,58 +111,44 @@ const Dashboard = () => {
             setLoading(false);
             setDisable(false);
           }
+          if (response["data"]["status"] == "500") {
+            alert("その店には商品がありません。");
+            setLoading(false);
+            setDisable(false);
+          }
+        })
+        .catch((error) => {
+          console.log(error);
         });
 
-      newSocket.onmessage = (event) => {
+      // fetch(process.env.REACT_APP_API_ROOT + "getProducts", {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //   },
+      //   body: JSON.stringify({ storeName: store_name }),
+      // }).catch((error) => {
+      //   // Handle any errors that occurred during the fetch
+      //   console.error("Request failed", error);
+      // });
+
+      socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
         setMessage(data.message);
-        console.log(data.message);
+        // console.log(data.message);
 
-        // axios
-        //   .get(process.env.REACT_APP_API_ROOT + "getStatus")
-        //   .then((response) => {
-        //     if (response["data"]["status"] == "success") {
-        //       setLoading(false);
-        //       setDisable(false);
-        //       setTableData(response["data"]["result"]);
-        //     } else {
-        //       setExtractedCount(response["data"]["extracted_count"]);
-        //       setTotalCount(response["data"]["total_count"]);
-        //       newSocket.send(
-        //         JSON.stringify({
-        //           message: "getStatus",
-        //         })
-        //       );
-        //     }
-        //   });
-        newSocket.send(
+        socket.send(
           JSON.stringify({
             message: "getStatus",
           })
         );
       };
 
-      newSocket.send(
+      socket.send(
         JSON.stringify({
           message: "getStatus",
         })
       );
-
-      // const interval = setInterval(() => {
-      //   axios
-      //     .get(process.env.REACT_APP_API_ROOT + "getStatus")
-      //     .then((response) => {
-      //       if (response["data"]["status"] == "success") {
-      //         setLoading(false);
-      //         setDisable(false);
-      //         setTableData(response["data"]["result"]);
-      //         clearInterval(interval);
-      //       } else {
-      //         setExtractedCount(response["data"]["extracted_count"]);
-      //         setTotalCount(response["data"]["total_count"]);
-      //       }
-      //     });
-      // }, 2000);
     }
   };
 
